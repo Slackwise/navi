@@ -4,3 +4,4 @@ out/
 .wrangler/
 .clj-kondo/.cache/
 .lsp/.cache/
+.vscode/
