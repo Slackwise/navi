@@ -2,9 +2,5 @@ node_modules/
 out/
 .shadow-cljs/
 .wrangler/
-.clj-kondo/.cache/v1/lock
-.clj-kondo/.cache/v1/cljs/navi.auth.transit.json
-.clj-kondo/.cache/v1/cljs/navi.core-test.transit.json
-.clj-kondo/.cache/v1/cljs/navi.core.transit.json
-.clj-kondo/.cache/v1/cljs/navi.discord.transit.json
-.lsp/.cache/db.transit.json
+.clj-kondo/.cache/
+.lsp/.cache/
