@@ -7,15 +7,15 @@
         command-name (.-name data)
         db (.-DB env)]
     (if (= command-name "status")
-      (-> (.prepare db "SELECT count(*) as count FROM migrations")
+      (-> (.prepare db "SELECT count(*) as count FROM users")
           (.first)
           (.then (fn [db-res]
-                   (let [migration-count (.-count db-res)
+                   (let [user-count (.-count db-res)
                          embed (-> (EmbedBuilder.)
                                    (.setTitle "🟢 Navi Status")
                                    (.setColor "#00ff00")
                                    (.addFields #js [#js {:name "Runtime" :value "Cloudflare Workers (ClojureScript/ESM)"}
-                                                    #js {:name "Database" :value (str "D1 Active (" migration-count " migrations applied)")}]))]
+                                                    #js {:name "Database" :value (str "D1 Active (" user-count " registered users)")}]))]
                      #js {:type (.-CHANNEL_MESSAGE_WITH_SOURCE di/InteractionResponseType)
                           :data #js {:embeds #js [embed]}}))))
       (js/Promise.resolve

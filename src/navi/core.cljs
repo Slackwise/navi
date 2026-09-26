@@ -1,5 +1,6 @@
 (ns navi.core
   (:require ["discord-interactions" :as di]
+            [navi.auth :as auth]
             [navi.discord :as discord]))
 
 (defn handle-interaction [request env]
@@ -22,7 +23,21 @@
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def ^:export default
   #js {:fetch (fn [request env _ctx]
-                (let [url (js/URL. (.-url request))]
-                  (if (and (= (.-pathname url) "/interactions") (= (.-method request) "POST"))
+                (let [url (js/URL. (.-url request))
+                      pathname (.-pathname url)
+                      method (.-method request)]
+                  (cond
+                    (and (= pathname "/interactions") (= method "POST"))
                     (handle-interaction request env)
+
+                    (and (= pathname "/auth/google") (= method "POST"))
+                    (auth/handle-google-signin request env)
+
+                    (and (= pathname "/auth/me") (= method "GET"))
+                    (auth/handle-me request env)
+
+                    (and (= pathname "/auth/logout") (= method "POST"))
+                    (auth/handle-logout request env)
+
+                    :else
                     (js/Promise.resolve (js/Response. "Navi is online" #js {:status 200})))))})

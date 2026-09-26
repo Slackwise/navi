@@ -8,3 +8,11 @@ binding = "DB"
 database_name = "navi-db"
 database_id = "YOUR_D1_DATABASE_ID"
 migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# OAuth client ID for Google SSO (not secret, used as the expected JWT audience).
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
