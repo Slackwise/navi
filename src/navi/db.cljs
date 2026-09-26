@@ -37,18 +37,39 @@
 
 ;; ---- Sessions (KV) ----
 ;; KV acts as the session allow-list: presence of the key means the session is valid.
-;; No TTL is set, so entries live until explicitly deleted (invalidate-session!).
+;; Non-expiring by default; pass ttl-seconds to opt a session into auto-expiry
+;; (KV enforces a 60 second minimum on expirationTtl).
+;; Keys are namespaced by user id (session:<user-id>:<session-id>) so every session
+;; belonging to a user can be found/revoked with a single KV list - no separate index entry.
+
+(defn- session-key [user-id session-id]
+  (str "session:" user-id ":" session-id))
+
+(defn- session-prefix [user-id]
+  (str "session:" user-id ":"))
 
 (defn create-session!
-  "Create a non-expiring session for `user`. Returns the new session id."
-  [kv user]
-  (let [session-id (.randomUUID js/crypto)]
-    (-> (.put kv session-id (js/JSON.stringify (clj->js user)))
-        (.then (fn [_] session-id)))))
+  "Create a session for `user`, returns {:user-id ... :session-id ...}.
+   Non-expiring unless `ttl-seconds` is given."
+  ([kv user] (create-session! kv user nil))
+  ([kv user ttl-seconds]
+   (let [session-id (.randomUUID js/crypto)
+         key (session-key (:id user) session-id)
+         value (js/JSON.stringify (clj->js user))
+         options (when ttl-seconds #js {:expirationTtl ttl-seconds})]
+     (-> (if options (.put kv key value options) (.put kv key value))
+         (.then (fn [_] {:user-id (:id user) :session-id session-id}))))))
 
-(defn find-session [kv session-id]
-  (-> (.get kv session-id)
+(defn find-session [kv user-id session-id]
+  (-> (.get kv (session-key user-id session-id))
       (.then (fn [value] (when value (js->clj (js/JSON.parse value) :keywordize-keys true))))))
 
-(defn invalidate-session! [kv session-id]
-  (.delete kv session-id))
+(defn invalidate-session! [kv user-id session-id]
+  (.delete kv (session-key user-id session-id)))
+
+(defn invalidate-all-sessions!
+  "Revoke every session belonging to `user-id` (e.g. \"log out everywhere\")."
+  [kv user-id]
+  (-> (.list kv #js {:prefix (session-prefix user-id)})
+      (.then (fn [listing]
+               (js/Promise.all (.map (.-keys listing) (fn [k] (.delete kv (.-name k)))))))))

@@ -25,10 +25,20 @@
             (.split header ";"))))) 
 
 (defn- session-cookie-header
-  ([session-id] (session-cookie-header session-id cookie-max-age-seconds))
-  ([session-id max-age-seconds]
-   (str session-cookie-name "=" session-id
+  ([cookie-value] (session-cookie-header cookie-value cookie-max-age-seconds))
+  ([cookie-value max-age-seconds]
+   (str session-cookie-name "=" cookie-value
         "; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=" max-age-seconds)))
+
+(defn- session-cookie-value [user-id session-id]
+  (str user-id ":" session-id))
+
+(defn- parse-session-cookie [request]
+  (when-let [raw (get (parse-cookies request) session-cookie-name)]
+    (let [sep (.indexOf raw ":")]
+      (when (pos? sep)
+        {:user-id (subs raw 0 sep)
+         :session-id (subs raw (inc sep))}))))
 
 (defn- verify-google-credential [credential client-id]
   (-> (jose/jwtVerify credential google-jwks
@@ -54,19 +64,19 @@
                          (.then (fn [profile] (db/upsert-user! d1 profile)))
                          (.then (fn [user]
                                   (-> (db/create-session! kv (dissoc user :google-sub))
-                                      (.then (fn [session-id]
+                                      (.then (fn [{:keys [user-id session-id]}]
                                                (js/Response. (js/JSON.stringify (clj->js (dissoc user :google-sub)))
                                                              #js {:status 200
                                                                   :headers #js {"Content-Type" "application/json"
-                                                                                "Set-Cookie" (session-cookie-header session-id)}}))))))
+                                                                                "Set-Cookie" (session-cookie-header (session-cookie-value user-id session-id))}}))))))
                          (.catch (fn [_err] (json-response 401 {:error "Invalid Google credential"})))))))))))
 
 (defn handle-me [request env]
   (let [kv (.-SESSIONS env)
-        session-id (get (parse-cookies request) session-cookie-name)]
-    (if-not session-id
+        cookie (parse-session-cookie request)]
+    (if-not cookie
       (js/Promise.resolve (json-response 401 {:error "Not authenticated"}))
-      (-> (db/find-session kv session-id)
+      (-> (db/find-session kv (:user-id cookie) (:session-id cookie))
           (.then (fn [user]
                    (if-not user
                      (json-response 401 {:error "Not authenticated"})
@@ -74,10 +84,24 @@
 
 (defn handle-logout [request env]
   (let [kv (.-SESSIONS env)
-        session-id (get (parse-cookies request) session-cookie-name)]
-    (-> (if session-id
-          (db/invalidate-session! kv session-id)
+        cookie (parse-session-cookie request)]
+    (-> (if cookie
+          (db/invalidate-session! kv (:user-id cookie) (:session-id cookie))
           (js/Promise.resolve nil))
         (.then (fn [_]
                  (js/Response. nil #js {:status 204
                                          :headers #js {"Set-Cookie" (session-cookie-header "" 0)}}))))))
+
+(defn handle-logout-all [request env]
+  (let [kv (.-SESSIONS env)
+        cookie (parse-session-cookie request)]
+    (if-not cookie
+      (js/Promise.resolve (json-response 401 {:error "Not authenticated"}))
+      (-> (db/find-session kv (:user-id cookie) (:session-id cookie))
+          (.then (fn [user]
+                   (if-not user
+                     (json-response 401 {:error "Not authenticated"})
+                     (-> (db/invalidate-all-sessions! kv (:id user))
+                         (.then (fn [_]
+                                  (js/Response. nil #js {:status 204
+                                                          :headers #js {"Set-Cookie" (session-cookie-header "" 0)}})))))))))))

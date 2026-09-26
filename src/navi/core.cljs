@@ -39,5 +39,8 @@
                     (and (= pathname "/auth/logout") (= method "POST"))
                     (auth/handle-logout request env)
 
+                    (and (= pathname "/auth/logout-all") (= method "POST"))
+                    (auth/handle-logout-all request env)
+
                     :else
                     (js/Promise.resolve (js/Response. "Navi is online" #js {:status 200})))))})
