@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Watch Shadow-CLJS",
+      "type": "shell",
+      "command": "npx shadow-cljs watch worker",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "clojure",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Compiling",
+          "endsPattern": "Build completed"
+        }
+      }
+    },
+    {
+      "label": "Start Wrangler (Debug)",
+      "type": "shell",
+      "command": "npx wrangler dev --inspect",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "wrangler",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting local server",
+          "endsPattern": "Ready on"
+        }
+      }
+    },
+    {
+      "label": "Start Navi Stack",
+      "dependsOn": [
+        "Watch Shadow-CLJS",
+        "Start Wrangler (Debug)"
+      ],
+      "dependsOrder": "parallel"
+    }
+  ]
+}

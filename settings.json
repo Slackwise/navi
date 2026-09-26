@@ -1,0 +1,11 @@
+{
+  "calva.replConnectSequences": [
+    {
+      "name": "Navi (Shadow-CLJS)",
+      "projectType": "shadow-cljs",
+      "cljsType": "shadow-cljs",
+      "shadowBuilds": ["worker"]
+    }
+  ],
+  "calva.autoConnectRepl": false
+}

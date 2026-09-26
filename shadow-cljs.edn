@@ -1,0 +1,11 @@
+{:source-paths ["src" "test"]
+ :dependencies []
+ :builds
+ {:worker {:target :esm
+           :output-dir "out"
+           :modules {:worker {:entries [navi.core]}}
+           :js-options {:js-provider :import}}
+  
+  :test {:target :node-test
+         :output-to "out/node-tests.js"
+         :autorun true}}}
