@@ -1,0 +1,94 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Watch Shadow-CLJS",
+      "type": "shell",
+      "command": "npx shadow-cljs watch worker",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "clojure",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Compiling",
+          "endsPattern": "Build completed"
+        }
+      }
+    },
+    {
+      "label": "Start Wrangler (Debug)",
+      "type": "shell",
+      "command": "npx wrangler dev --inspect",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "wrangler",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting local server",
+          "endsPattern": "Ready on"
+        }
+      }
+    },
+    {
+      "label": "Start Navi Stack",
+      "dependsOn": ["Watch Shadow-CLJS", "Start Wrangler (Debug)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "npm test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Watch Desktop (Shadow-CLJS)",
+      "type": "shell",
+      "command": "npx shadow-cljs watch desktop",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "clojure",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Compiling",
+          "endsPattern": "Build completed"
+        }
+      }
+    },
+    {
+      "label": "Build Desktop (Release JS)",
+      "type": "shell",
+      "command": "npx shadow-cljs release desktop",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Desktop (Deno)",
+      "type": "shell",
+      "command": "deno task dev",
+      "options": { "cwd": "${workspaceFolder}/frontend/desktop" },
+      "dependsOn": ["Watch Desktop (Shadow-CLJS)"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Compile Desktop EXE",
+      "type": "shell",
+      "command": "deno task compile",
+      "options": { "cwd": "${workspaceFolder}/frontend/desktop" },
+      "dependsOn": ["Build Desktop (Release JS)"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Desktop EXE",
+      "type": "process",
+      "command": "${workspaceFolder}/frontend/desktop/dist/navi-desktop.exe",
+      "dependsOn": ["Compile Desktop EXE"],
+      "problemMatcher": []
+    }
+  ]
+}

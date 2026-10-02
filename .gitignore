@@ -4,6 +4,5 @@ out/
 .wrangler/
 .clj-kondo/.cache/
 .lsp/.cache/
-.vscode/
 frontend/desktop/build/
 frontend/desktop/dist/

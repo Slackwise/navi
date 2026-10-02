@@ -1,4 +1,5 @@
 {
+  "autoHide.autoHideSideBar": false,
   "calva.replConnectSequences": [
     {
       "name": "Navi (Shadow-CLJS)",
@@ -7,5 +8,6 @@
       "shadowBuilds": ["worker", "desktop", "test"]
     }
   ],
-  "calva.autoConnectRepl": false
+  "calva.autoConnectRepl": false,
+  "deno.enablePaths": ["frontend/desktop"]
 }
