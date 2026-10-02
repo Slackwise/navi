@@ -2,6 +2,17 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Bootstrap Dev Environment",
+      "type": "process",
+      "command": "bash",
+      "args": ["${workspaceFolder}/scripts/bootstrap.sh"],
+      "windows": {
+        "command": "${env:ProgramFiles}\\Git\\bin\\bash.exe"
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
       "label": "Watch Shadow-CLJS",
       "type": "shell",
       "command": "npx shadow-cljs watch worker",
