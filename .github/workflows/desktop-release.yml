@@ -1,0 +1,62 @@
+name: Desktop Release
+
+# Push a tag like desktop-v0.0.1 (matching VERSION in
+# frontend/desktop/src/navi/desktop/version.cljs) to build and publish.
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify tag matches version.cljs
+        run: |
+          version=$(sed -nE 's/.*goog-define VERSION "([^"]+)".*/\1/p' frontend/desktop/src/navi/desktop/version.cljs)
+          if [ "desktop-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version.cljs ($version)"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+      - run: npx shadow-cljs release desktop
+
+      - name: Compile executables
+        working-directory: frontend/desktop
+        run: |
+          deno task icon
+          mkdir -p dist
+          for target in x86_64-pc-windows-msvc x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin; do
+            if [ "$target" = "x86_64-pc-windows-msvc" ]; then
+              deno compile --allow-all --no-terminal --icon build/navi.ico --target "$target" --output "dist/navi-desktop-$target.exe" out/main.js
+            else
+              deno compile --allow-all --target "$target" --output "dist/navi-desktop-$target" out/main.js
+            fi
+          done
+          ls -la dist
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" frontend/desktop/dist/* --title "Navi Desktop $GITHUB_REF_NAME" --generate-notes

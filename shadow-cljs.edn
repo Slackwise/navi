@@ -1,11 +1,26 @@
-{:source-paths ["src" "test"]
+{:source-paths ["shared/src"
+                "shared/test"
+                "backend/src"
+                "backend/test"
+                "frontend/desktop/src"]
  :dependencies []
  :builds
- {:worker {:target :esm
-           :output-dir "out"
+ {;; Cloudflare Worker (backend/wrangler.toml points at backend/out/worker.js)
+  :worker {:target :esm
+           :output-dir "backend/out"
            :modules {:worker {:entries [navi.core]}}
            :js-options {:js-provider :import}}
-  
+
+  ;; Deno desktop tray app; `deno compile` turns frontend/desktop/out/main.js into a single executable.
+  ;; :simple keeps JS property names intact, which Deno's FFI symbol objects rely on.
+  :desktop {:target :esm
+            :output-dir "frontend/desktop/out"
+            :modules {:main {:init-fn navi.desktop.main/main}}
+            :js-options {:js-provider :import}
+            :devtools {:enabled false}
+            :compiler-options {:optimizations :simple}}
+
+  ;; Runs every *-test namespace from shared/test and backend/test under Node
   :test {:target :node-test
          :output-to "out/node-tests.js"
          :autorun true}}}

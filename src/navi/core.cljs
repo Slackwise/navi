@@ -2,6 +2,7 @@
   (:require ["discord-interactions" :as di]
             [navi.auth :as auth]
             [navi.discord :as discord]
+            [navi.shared.api :as api]
             [navi.wow :as wow]))
 
 (defn handle-interaction [request env]
@@ -21,29 +22,20 @@
                                     (js/Response. (js/JSON.stringify response-obj)
                                                   #js {:headers #js {"Content-Type" "application/json"}}))))))))))))
 
+(def ^:private handlers
+  {["POST" (:interactions api/routes)] handle-interaction
+   ["POST" (:auth-google api/routes)] auth/handle-google-signin
+   ["GET" (:auth-me api/routes)] auth/handle-me
+   ["POST" (:auth-logout api/routes)] auth/handle-logout
+   ["POST" (:auth-logout-all api/routes)] auth/handle-logout-all})
+
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (def ^:export default
   #js {:fetch (fn [request env _ctx]
                 (let [url (js/URL. (.-url request))
-                      pathname (.-pathname url)
-                      method (.-method request)]
-                  (cond
-                    (and (= pathname "/interactions") (= method "POST"))
-                    (handle-interaction request env)
-
-                    (and (= pathname "/auth/google") (= method "POST"))
-                    (auth/handle-google-signin request env)
-
-                    (and (= pathname "/auth/me") (= method "GET"))
-                    (auth/handle-me request env)
-
-                    (and (= pathname "/auth/logout") (= method "POST"))
-                    (auth/handle-logout request env)
-
-                    (and (= pathname "/auth/logout-all") (= method "POST"))
-                    (auth/handle-logout-all request env)
-
-                    :else
+                      handler (get handlers [(.-method request) (.-pathname url)])]
+                  (if handler
+                    (handler request env)
                     (js/Promise.resolve (js/Response. "Navi is online" #js {:status 200})))))
 
        :scheduled (fn [_event env ctx]

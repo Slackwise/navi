@@ -2,7 +2,7 @@
   (:require ["discord-interactions" :as di]
             ["discord.js" :refer [EmbedBuilder]]
             [navi.db :as db]
-            [navi.wow :as wow]))
+            [navi.shared.wow :as wow]))
 
 (def ^:private ephemeral-flag (.-EPHEMERAL di/InteractionResponseFlags))
 

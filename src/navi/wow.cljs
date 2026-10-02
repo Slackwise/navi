@@ -1,70 +1,10 @@
 (ns navi.wow
   (:require [navi.db :as db]
+            [navi.shared.http :as http]
+            [navi.shared.wow :refer [format-gold rate-of-increase-peaked?]]
             ["discord.js" :refer [EmbedBuilder]]))
 
-(defn format-gold [amount]
-  (if (number? amount)
-    (str (.toLocaleString (js/Number. amount)) "g")
-    (str amount "g")))
-
-;; ---- Rate and Peak Calculations ----
-
-(defn calculate-hourly-rates
-  "Calculates hourly rate of price change between consecutive readings.
-   Each reading can be a map {:price p :recorded-at t} or a number p.
-   If timestamps are missing, assumes 5-minute intervals between readings."
-  [prices]
-  (let [extract-price (fn [p] (if (map? p) (:price p) p))
-        extract-time (fn [p] (if (map? p) (:recorded-at p) nil))]
-    (map (fn [[prev curr]]
-           (let [p1 (extract-price prev)
-                 p2 (extract-price curr)
-                 t1 (extract-time prev)
-                 t2 (extract-time curr)]
-             (if (and t1 t2)
-               (let [ms (- (.getTime (js/Date. t2)) (.getTime (js/Date. t1)))
-                     hours (/ ms 3600000)]
-                 (if (pos? hours)
-                   (/ (- p2 p1) hours)
-                   (* (- p2 p1) 12)))
-               (* (- p2 p1) 12))))
-         (partition 2 1 prices))))
-
-(defn rate-of-increase-peaked?
-  "Calculates whether a peak has been reached by tracking the rate of growth over time.
-   A peak is detected when there was prior positive growth and:
-   1. The rate dropped (< curr-rate prev-rate), OR
-   2. The rate is negative (<= curr-rate 0), OR
-   3. The rate is less than 1% increase (< pct-growth 1.0).
-   Requires at least 3 price readings (yielding at least 2 consecutive rate intervals)."
-  [prices]
-  (let [extract-price (fn [p] (if (map? p) (:price p) p))
-        num-prices (mapv extract-price prices)
-        n-prices (count num-prices)]
-    (when (>= n-prices 3)
-      (let [rates (vec (calculate-hourly-rates prices))
-            n-rates (count rates)]
-        (when (>= n-rates 2)
-          (let [curr-rate (get rates (dec n-rates))
-                prev-rate (get rates (- n-rates 2))
-                last-p (get num-prices (dec n-prices))
-                prev-p (get num-prices (- n-prices 2))
-                hourly-pct-growth (if (pos? last-p)
-                                    (/ (* curr-rate 100.0) last-p)
-                                    0.0)
-                step-pct-growth (if (pos? prev-p)
-                                  (/ (* (- last-p prev-p) 100.0) prev-p)
-                                  0.0)
-                prior-growth? (or (pos? prev-rate)
-                                  (some pos? (subvec rates 0 (dec n-rates))))
-                rate-dropped? (< curr-rate prev-rate)
-                rate-negative? (<= curr-rate 0)
-                rate-under-1-pct? (or (< hourly-pct-growth 1.0)
-                                      (< step-pct-growth 1.0))]
-            (boolean (and prior-growth?
-                          (or rate-dropped?
-                              rate-negative?
-                              rate-under-1-pct?)))))))))
+;; Pure price math and formatting live in navi.shared.wow.
 
 ;; ---- Blizzard / WoW API ----
 
@@ -84,15 +24,12 @@
                      (if cached
                        cached
                        (let [auth-header (str "Basic " (js/btoa (str client-id ":" client-secret)))]
-                         (-> (js/fetch "https://oauth.battle.net/token"
-                                       #js {:method "POST"
-                                            :headers #js {"Authorization" auth-header
-                                                          "Content-Type" "application/x-www-form-urlencoded"}
-                                            :body "grant_type=client_credentials"})
-                             (.then (fn [res]
-                                      (if (.-ok res)
-                                        (.json res)
-                                        (throw (js/Error. (str "Blizzard OAuth error: " (.-status res)))))))
+                         (-> (http/fetch-json "https://oauth.battle.net/token"
+                                              #js {:method "POST"
+                                                   :headers #js {"Authorization" auth-header
+                                                                 "Content-Type" "application/x-www-form-urlencoded"}
+                                                   :body "grant_type=client_credentials"}
+                                              "Blizzard OAuth error")
                              (.then (fn [token-data]
                                       (let [token (.-access_token token-data)
                                             expires-in (or (.-expires_in token-data) 86400)
@@ -118,11 +55,9 @@
                      (js/console.warn "Blizzard API credentials not configured; skipping WoW token fetch")
                      nil)
                    (let [url (str "https://" region ".api.blizzard.com/data/wow/token/index?namespace=dynamic-" region "&locale=en_US")]
-                     (-> (js/fetch url #js {:headers #js {"Authorization" (str "Bearer " access-token)}})
-                         (.then (fn [res]
-                                  (if (.-ok res)
-                                    (.json res)
-                                    (throw (js/Error. (str "Blizzard WoW API error: " (.-status res)))))))
+                     (-> (http/fetch-json url
+                                          #js {:headers #js {"Authorization" (str "Bearer " access-token)}}
+                                          "Blizzard WoW API error")
                          (.then (fn [data]
                                   (let [copper (.-price data)
                                         gold (Math/floor (/ copper 10000))
@@ -146,15 +81,12 @@
       (do
         (js/console.warn "DISCORD_BOT_TOKEN not configured; cannot deliver DM to" user-id)
         (js/Promise.resolve nil))
-      (-> (js/fetch "https://discord.com/api/v10/users/@me/channels"
-                    #js {:method "POST"
-                         :headers #js {"Authorization" (str "Bot " token)
-                                       "Content-Type" "application/json"}
-                         :body (js/JSON.stringify #js {:recipient_id user-id})})
-          (.then (fn [res]
-                   (if (.-ok res)
-                     (.json res)
-                     (throw (js/Error. (str "Failed to open DM channel for user " user-id ": " (.-status res)))))))
+      (-> (http/fetch-json "https://discord.com/api/v10/users/@me/channels"
+                           #js {:method "POST"
+                                :headers #js {"Authorization" (str "Bot " token)
+                                              "Content-Type" "application/json"}
+                                :body (js/JSON.stringify #js {:recipient_id user-id})}
+                           (str "Failed to open DM channel for user " user-id))
           (.then (fn [dm-channel]
                    (let [channel-id (.-id dm-channel)
                          embed (doto (EmbedBuilder.)

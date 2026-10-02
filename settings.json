@@ -4,7 +4,7 @@
       "name": "Navi (Shadow-CLJS)",
       "projectType": "shadow-cljs",
       "cljsType": "shadow-cljs",
-      "shadowBuilds": ["worker"]
+      "shadowBuilds": ["worker", "desktop", "test"]
     }
   ],
   "calva.autoConnectRepl": false

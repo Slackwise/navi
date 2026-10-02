@@ -1,21 +1,21 @@
 {
   "name": "navi",
   "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "backend"
+  ],
   "scripts": {
     "dev": "shadow-cljs watch worker",
-    "start": "wrangler dev",
+    "start": "npm run start -w backend",
     "build": "shadow-cljs release worker",
     "test": "shadow-cljs compile test && node out/node-tests.js",
-    "db:migrate": "wrangler d1 migrations apply DB --local",
-    "db:migrate:prod": "wrangler d1 migrations apply DB --remote"
-  },
-  "dependencies": {
-    "discord-interactions": "^3.4.0",
-    "discord.js": "^14.15.0",
-    "jose": "^6.2.12"
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:migrate:prod": "npm run db:migrate:prod -w backend",
+    "desktop:dev": "shadow-cljs watch desktop",
+    "desktop:build": "shadow-cljs release desktop"
   },
   "devDependencies": {
-    "shadow-cljs": "^2.28.0",
-    "wrangler": "^3.0.0"
+    "shadow-cljs": "^2.28.0"
   }
 }

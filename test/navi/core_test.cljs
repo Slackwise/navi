@@ -1,8 +1,7 @@
 (ns navi.core-test
   (:require [cljs.test :refer-macros [deftest is testing async]]
             [navi.db :as db]
-            [navi.discord :as discord]
-            [navi.wow :as wow]))
+            [navi.discord :as discord]))
 
 (defn- mock-d1 [handlers]
   #js {:prepare (fn [query]
@@ -146,26 +145,6 @@
                        (is (= 250000 (nth @saved-sub 4)))
                        (is (= "also" (nth @saved-sub 5)))
                        (done)))))))))
-
-(deftest rate-of-increase-peaked-test
-  (testing "Calculates if rate per hour of gold increase has peaked (rate dropped, is negative, or under 1% increase)"
-    ;; Case 1: Rate dropped from +120k/hr to +60k/hr -> peaked!
-    (is (true? (wow/rate-of-increase-peaked? [200000 205000 215000 220000])))
-
-    ;; Case 2: Rate is negative (price started falling after climbing) -> peaked!
-    (is (true? (wow/rate-of-increase-peaked? [200000 210000 205000])))
-
-    ;; Case 3: Rate dropped to zero (price halted after climbing) -> peaked!
-    (is (true? (wow/rate-of-increase-peaked? [200000 210000 210000])))
-
-    ;; Case 4: Rate of increase dropped to under 1% increase after climbing -> peaked!
-    (is (true? (wow/rate-of-increase-peaked? [250000 255000 255500])))
-
-    ;; Case 5: Continuously accelerating rate (> 1% and accelerating) -> not peaked yet
-    (is (not (true? (wow/rate-of-increase-peaked? [200000 205000 215000 230000]))))
-
-    ;; Case 6: Price continuously falling without prior positive growth -> not a peak
-    (is (not (true? (wow/rate-of-increase-peaked? [200000 195000 190000]))))))
 
 (deftest spam-prevention-test
   (testing "Spam prevention ensures user is not notified repeatedly unless price dips"

@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-all out/main.js",
+    "icon": "deno run --allow-read --allow-write out/main.js write-icon build/navi.ico",
+    "compile": {
+      "command": "deno compile --allow-all --no-terminal --icon build/navi.ico --output dist/navi-desktop out/main.js",
+      "dependencies": ["icon"]
+    }
+  }
+}
