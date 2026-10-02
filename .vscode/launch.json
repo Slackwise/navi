@@ -12,12 +12,12 @@
       "skipFiles": ["<node_internals>/**"]
     },
     {
-      "name": "Debug Navi Desktop (Deno)",
+      "name": "Debug Navi Desktop (Node.js)",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/frontend/desktop",
-      "runtimeExecutable": "deno",
-      "runtimeArgs": ["run", "--inspect-wait", "--allow-all", "out/main.js"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--inspect-wait", "out/main.js"],
       "attachSimplePort": 9229,
       "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
       "preLaunchTask": "Watch Desktop (Shadow-CLJS)",

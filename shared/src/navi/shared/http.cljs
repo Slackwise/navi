@@ -1,5 +1,5 @@
 (ns navi.shared.http
-  "Promise-based helpers over the standard Fetch API (Workers, Deno and browsers).")
+  "Promise-based helpers over the standard Fetch API (Workers, browsers and Node.js).")
 
 (defn- ensure-ok [^js res error-prefix]
   (if (.-ok res)

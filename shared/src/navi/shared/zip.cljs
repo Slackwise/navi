@@ -1,6 +1,6 @@
 (ns navi.shared.zip
   "Minimal ZIP reader built only on web-standard APIs (DataView, Blob, DecompressionStream),
-   so it runs in Deno, Workers, browsers and Node 18+. Supports stored and deflated
+   so it runs in Workers, browsers and Node 18+. Supports stored and deflated
    entries; ZIP64, encryption and multi-disk archives are not supported.")
 
 (def ^:private eocd-signature 0x06054b50)

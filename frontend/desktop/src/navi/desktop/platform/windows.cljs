@@ -1,5 +1,7 @@
 (ns navi.desktop.platform.windows
-  (:require [navi.desktop.log :as log]
+  (:require ["node:fs" :as fs]
+            [clojure.string :as str]
+            [navi.desktop.log :as log]
             [navi.desktop.paths :as paths]
             [navi.desktop.proc :as proc]
             [navi.desktop.win32.ffi :as ffi]
@@ -48,7 +50,7 @@
   (if (zip/safe-entry-name? name)
     (let [dest (apply paths/join dir (.split name #"[\\/]"))]
       (paths/ensure-dir-sync! (paths/dirname dest))
-      (.writeFile js/Deno dest bytes))
+      (.writeFileSync fs dest bytes))
     (do (log/warn "Skipping unsafe ZIP entry" name)
         (js/Promise.resolve nil))))
 
@@ -95,7 +97,7 @@
 ;; ---- Autostart (HKCU Run key) ----
 
 (defn- autostart-command []
-  (str "\"" (paths/exe-path) "\""))
+  (str/join " " (map #(str "\"" % "\"") (paths/launch-command))))
 
 (defn- autostart-enabled? []
   (js/Promise.resolve (some? (reg/read-string run-key run-value nil))))
@@ -107,7 +109,7 @@
   (js/Promise.resolve enabled?))
 
 (defn- refresh-autostart!
-  "Re-points an existing Run entry at this executable (e.g. after the exe was moved)."
+  "Re-points an existing Run entry at the current Navi launch command."
   []
   (let [current (reg/read-string run-key run-value nil)]
     (when (and current (not= current (autostart-command)))

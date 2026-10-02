@@ -1,7 +1,7 @@
 (ns navi.desktop.icon
-  "Procedurally drawn 32x32 tray/app icon (a glowing fairy orb with wings), so the
-   single executable needs no external image assets."
-  (:require [navi.desktop.paths :as paths]))
+  "Procedurally drawn 32x32 tray/app icon."
+  (:require ["node:fs" :as fs]
+            [navi.desktop.paths :as paths]))
 
 (def ^:private size 32)
 (def ^:private header-size 40)
@@ -86,4 +86,4 @@
 
 (defn write-ico! [path]
   (paths/ensure-dir-sync! (paths/dirname path))
-  (.writeFileSync js/Deno path (ico-bytes)))
+  (.writeFileSync fs path (ico-bytes)))

@@ -2,8 +2,12 @@
   "name": "navi",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": ">=26.11.1"
+  },
   "workspaces": [
-    "backend"
+    "backend",
+    "frontend/desktop"
   ],
   "scripts": {
     "dev": "shadow-cljs watch worker",
@@ -13,9 +17,14 @@
     "db:migrate": "npm run db:migrate -w backend",
     "db:migrate:prod": "npm run db:migrate:prod -w backend",
     "desktop:dev": "shadow-cljs watch desktop",
-    "desktop:build": "shadow-cljs release desktop"
+    "desktop:build": "shadow-cljs release desktop",
+    "desktop:package": "npm run package --workspace navi-desktop",
+    "test:sea": "node --test scripts/desktop-sea.test.mjs"
   },
   "devDependencies": {
     "shadow-cljs": "^2.28.0"
+  },
+  "allowScripts": {
+    "koffi@3.3.2": true
   }
 }

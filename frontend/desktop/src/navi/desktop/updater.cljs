@@ -1,7 +1,9 @@
 (ns navi.desktop.updater
   "Self-update from GitHub Releases tagged desktop-v<version>."
-  (:require [navi.desktop.log :as log]
+  (:require ["node:fs" :as fs]
+            [navi.desktop.log :as log]
             [navi.desktop.paths :as paths]
+            [navi.desktop.proc :as proc]
             [navi.desktop.version :as version]
             [navi.shared.github :as github]
             [navi.shared.http :as http]))
@@ -9,9 +11,14 @@
 (def tag-prefix "desktop-v")
 
 (defn asset-name
-  "Must match the file names produced by .github/workflows/desktop-release.yml."
+  "Must match the executable published by desktop releases."
   []
-  (str "navi-desktop-" (.. js/Deno -build -target) (when (paths/windows?) ".exe")))
+  (let [platform (paths/os)
+        arch (.-arch js/process)
+        supported #{["windows" "x64"] ["linux" "x64"] ["darwin" "arm64"] ["darwin" "x64"]}]
+    (when-not (contains? supported [platform arch])
+      (throw (js/Error. (str "Desktop updates are not available for " platform "-" arch))))
+    (if (paths/windows?) "navi.exe" (str "navi-desktop-" platform "-" arch))))
 
 (defn- user-agent []
   (str "navi-desktop/" version/VERSION))
@@ -43,47 +50,64 @@
                  (when-not (= actual expected)
                    (throw (js/Error. (str "Update checksum mismatch: expected " expected ", got " actual))))
                  bytes)))
-    (js/Promise.resolve bytes)))
+    (js/Promise.reject (js/Error. "Update is missing a SHA-256 checksum."))))
 
-(defn- remove-quietly! [path]
-  (try (.removeSync js/Deno path) true
-       (catch :default _ false)))
+(defn- remove-old! [path]
+  (try
+    (.unlinkSync fs path)
+    true
+    (catch :default e
+      (if (= "ENOENT" (.-code e)) true e))))
 
-(defn- swap-executable!
-  "Windows can't overwrite a running .exe but can rename it, so move it aside first."
-  [exe new-path]
-  (if (paths/windows?)
-    (let [old-path (str exe ".old")]
-      (remove-quietly! old-path)
-      (.renameSync js/Deno exe old-path)
-      (try
-        (.renameSync js/Deno new-path exe)
-        (catch :default e
-          (.renameSync js/Deno old-path exe)
-          (throw e))))
-    (.renameSync js/Deno new-path exe)))
+(defn- stage-binary! [exe bytes]
+  (let [new-path (str exe ".new")]
+    (.writeFileSync fs new-path bytes)
+    (when-not (paths/windows?)
+      (.chmodSync fs new-path 493)
+      (.renameSync fs new-path exe))
+    exe))
 
 (defn install!
-  "Downloads and verifies the update, then replaces the running executable.
-   Resolves to the executable path; the caller should relaunch it and exit."
+  "Downloads and verifies a SEA update. Windows stages .new; Unix replaces atomically.
+   Resolves to the executable path; the caller should restart and exit."
   [{:keys [url sha256 version]}]
-  (let [exe (paths/exe-path)
-        new-path (str exe ".new")]
-    (log/info "Downloading update" version "from" url)
-    (-> (http/fetch-bytes url #js {:headers #js {"User-Agent" (user-agent)}} "Update download failed")
-        (.then #(verify! % sha256))
-        (.then #(.writeFile js/Deno new-path % #js {:mode 493})) ; 0755
-        (.then (fn [_]
-                 (swap-executable! exe new-path)
-                 (log/info "Installed update" version)
+  (-> (js/Promise.resolve)
+      (.then (fn [_]
+               (when-not (paths/compiled?)
+                 (throw (js/Error. "Updates cannot be installed in source mode.")))
+               (log/info "Downloading update" version "from" url)
+               (http/fetch-bytes url #js {:headers #js {"User-Agent" (user-agent)}} "Update download failed")))
+      (.then #(verify! % sha256))
+      (.then (fn [bytes]
+               (let [exe (stage-binary! (paths/exe-path) bytes)]
+                 (log/info (if (paths/windows?) "Staged update" "Installed update") version)
                  exe)))))
 
+(defn- cleanup-path! [path]
+  ((fn attempt [remaining]
+     (let [result (remove-old! path)]
+       (when-not (true? result)
+         (if (pos? remaining)
+           (js/setTimeout #(attempt (dec remaining)) 2000)
+           (log/error "Could not remove update artifact" path ":" result)))))
+   5))
+
 (defn cleanup-old!
-  "Deletes the previous executable left behind by a Windows update, retrying while the
-   old process finishes exiting."
+  "Retries cleanup of Windows backups and the helper, which may still be exiting."
   []
-  (let [old-path (str (paths/exe-path) ".old")]
-    ((fn attempt [n]
-       (when (and (not (remove-quietly! old-path)) (pos? n))
-         (js/setTimeout #(attempt (dec n)) 2000)))
-     5)))
+  (when (paths/compiled?)
+    (doseq [suffix [".old" ".updater.exe"]]
+      (cleanup-path! (str (paths/exe-path) suffix)))))
+
+(defn restart!
+  "Resolves once a replacement process spawns or the Windows SEA helper is ready.
+   The caller must then exit so the helper can replace the loaded executable."
+  [exe]
+  (-> (js/Promise.resolve)
+      (.then (fn [_]
+               (if (and (paths/compiled?) (paths/windows?))
+                 (let [helper (str exe ".updater.exe")]
+                   (.copyFileSync fs (paths/exe-path) helper)
+                   (proc/spawn-update-helper! helper ["--navi-apply-update" exe (str (.-pid js/process))]))
+                 (let [[cmd & args] (paths/launch-command)]
+                   (proc/spawn-detached-checked! cmd args)))))))

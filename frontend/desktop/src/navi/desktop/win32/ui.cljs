@@ -76,17 +76,14 @@
 (defn- create-window! []
   (let [u (ffi/user32)
         hinstance (.GetModuleHandleW ^js (ffi/kernel32) nil)
-        callback (js/Deno.UnsafeCallback.
-                  #js {:parameters #js ["pointer" "u32" "usize" "isize"] :result "isize"}
-                  wndproc)
+        callback (ffi/register-window-proc wndproc)
         cls (ffi/wstr class-name)
         wndclass (js/Uint8Array. 80)
         view (js/DataView. (.-buffer wndclass))]
-    (.setUint32 view 0 80 true)                       ; cbSize
-    (ffi/set-ptr! view 8 (.-pointer callback))        ; lpfnWndProc
-    (ffi/set-ptr! view 24 hinstance)                  ; hInstance
-    (ffi/set-ptr! view 64 (ffi/buffer-ptr cls))       ; lpszClassName
-    ;; Keep the callback and buffers referenced for the window's lifetime.
+    (.setUint32 view 0 80 true)
+    (ffi/set-ptr! view 8 callback)
+    (ffi/set-ptr! view 24 hinstance)
+    (ffi/set-ptr! view 64 (ffi/buffer-ptr cls))
     (swap! state assoc :callback callback :class-buffer cls :wndclass wndclass
            :taskbar-created-msg (.RegisterWindowMessageW ^js u (ffi/wstr "TaskbarCreated")))
     (when (zero? (.RegisterClassExW ^js u wndclass))
@@ -213,7 +210,7 @@
 
 (defn destroy! []
   (when (active?)
-    (let [{:keys [hwnd hotkeys icon timer]} @state
+    (let [{:keys [hwnd hotkeys icon timer callback]} @state
           u (ffi/user32)]
       (js/clearInterval timer)
       (remove-tray-icon!)
@@ -221,7 +218,8 @@
         (.UnregisterHotKey ^js u hwnd id))
       (.DestroyWindow ^js u hwnd)
       (when icon (.DestroyIcon ^js u icon))
-      (swap! state assoc :hwnd nil :hotkeys #{} :queue []))))
+      (ffi/unregister-callback! callback)
+      (swap! state assoc :hwnd nil :callback nil :hotkeys #{} :queue []))))
 
 (defn- find-existing-window []
   (.FindWindowW ^js (ffi/user32) (ffi/wstr class-name) nil))

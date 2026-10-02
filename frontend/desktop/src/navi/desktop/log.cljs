@@ -1,6 +1,7 @@
 (ns navi.desktop.log
-  "Logs to the console and to <config-dir>/navi.log (the compiled Windows app has no console)."
-  (:require [clojure.string :as str]
+  "Logs to the console and to <config-dir>/navi.log."
+  (:require ["node:fs" :as fs]
+            [clojure.string :as str]
             [navi.desktop.paths :as paths]))
 
 (def ^:private max-bytes (* 1024 1024))
@@ -21,9 +22,11 @@
   (try
     (paths/ensure-dir-sync! (paths/config-dir))
     (let [file (log-file)
-          too-big? (try (> (.-size (.statSync js/Deno file)) max-bytes)
+          too-big? (try (> (.-size (.statSync fs file)) max-bytes)
                         (catch :default _ false))]
-      (.writeTextFileSync js/Deno file (str line "\n") #js {:append (not too-big?)}))
+      (if too-big?
+        (.writeFileSync fs file (str line "\n") "utf8")
+        (.appendFileSync fs file (str line "\n") "utf8")))
     (catch :default _ nil)))
 
 (defn- log! [level args]

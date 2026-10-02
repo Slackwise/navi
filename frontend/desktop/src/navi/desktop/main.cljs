@@ -11,7 +11,8 @@
 
 (def ^:private usage
   (str "Navi desktop v" version/VERSION "\n\n"
-       "Usage: navi-desktop [command]\n\n"
+       "Usage: navi-desktop[.exe] [command]\n"
+       "       node <desktop-script> [command] (source mode)\n\n"
        "  (no command)            Run in the background (tray icon + hotkeys on Windows)\n"
        "  toggle-theme            Toggle light/dark app theme\n"
        "  toggle-display-mode     Toggle Work/Game display mode (Windows)\n"
@@ -23,10 +24,10 @@
 
 (defn- finish! [p]
   (-> p
-      (.then (fn [_] (js/Deno.exit 0)))
+      (.then (fn [_] (js/process.exit 0)))
       (.catch (fn [e]
                 (log/error e)
-                (js/Deno.exit 1)))))
+                (js/process.exit 1)))))
 
 (defn- autostart-command [p arg]
   (case arg
@@ -44,7 +45,7 @@
 
 (defn main []
   (enable-console-print!)
-  (let [[command arg] (vec (.-args js/Deno))
+  (let [[command arg] (vec (js->clj (.slice (.-argv js/process) 2)))
         p (platform/current)]
     (case command
       nil (if (paths/windows?) (app/start!) (app/start-headless!))
@@ -56,4 +57,4 @@
       "write-icon" (icon/write-ico! (or arg "navi.ico"))
       ("help" "--help" "-h") (print usage)
       (do (print usage)
-          (js/Deno.exit 2)))))
+          (js/process.exit 2)))))

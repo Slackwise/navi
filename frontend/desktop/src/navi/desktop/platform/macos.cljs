@@ -1,5 +1,6 @@
 (ns navi.desktop.platform.macos
-  (:require [clojure.string :as str]
+  (:require ["node:fs" :as fs]
+            [clojure.string :as str]
             [navi.desktop.paths :as paths]
             [navi.desktop.proc :as proc]))
 
@@ -40,7 +41,9 @@
        "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
        "<plist version=\"1.0\">\n<dict>\n"
        "  <key>Label</key><string>" agent-label "</string>\n"
-       "  <key>ProgramArguments</key><array><string>" (xml-escape (paths/exe-path)) "</string></array>\n"
+       "  <key>ProgramArguments</key><array>"
+       (apply str (map #(str "<string>" (xml-escape %) "</string>") (paths/launch-command)))
+       "</array>\n"
        "  <key>RunAtLoad</key><true/>\n"
        "</dict>\n</plist>\n"))
 
@@ -50,10 +53,9 @@
 (defn- set-autostart! [enabled?]
   (if enabled?
     (do (paths/ensure-dir-sync! (paths/dirname (plist-path)))
-        (-> (.writeTextFile js/Deno (plist-path) (plist))
+        (-> (.writeFile (.-promises fs) (plist-path) (plist) "utf8")
             (.then (constantly true))))
-    (-> (.remove js/Deno (plist-path))
-        (.catch (constantly nil))
+    (-> (.rm (.-promises fs) (plist-path) #js {:force true})
         (.then (constantly false)))))
 
 (def platform

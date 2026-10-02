@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Idempotent dev-environment bootstrap for Navi.
-# Does the bare minimum to get the latest Node.js, then hands off to bootstrap.cljs (nbb) for everything else.
+# Installs Node.js, then hands off to bootstrap.cljs (nbb) for everything else.
 # Windows: run from Git Bash. winget/msiexec raise their own UAC prompts; nothing else is elevated.
 # Linux: sudo is used only to install Node.js into /usr/local.
 set -euo pipefail
@@ -97,6 +97,15 @@ esac
 
 command_exists node || die "node is still not on PATH. Open a new terminal and re-run."
 log "Using Node.js $(node --version)"
+minimum_node_version="$(tr -d '\r\n' < "$script_dir/../.node-version")"
+node -e '
+  const current = process.versions.node.split(".").map(Number);
+  const minimum = process.argv[1].split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (current[i] > minimum[i]) process.exit(0);
+    if (current[i] < minimum[i]) process.exit(1);
+  }
+' "$minimum_node_version" || die "Node.js $minimum_node_version or newer is required. Upgrade your externally managed Node.js installation and re-run."
 
 # HAND OFF TO NBB ------------------------------------------------------------
 cljs_script="$script_dir/bootstrap.cljs"

@@ -34,7 +34,7 @@
 (defn- quit! []
   (log/info "Navi exiting")
   (ui/destroy!)
-  (js/Deno.exit 0))
+  (js/process.exit 0))
 
 (defn- guarded!
   "Runs promise-returning `f` unless another action is still running, so repeated hotkey
@@ -54,30 +54,32 @@
 ;; ---- Updates ----
 
 (defn- relaunch! [exe]
-  (ui/destroy!)
-  (proc/spawn-detached! exe [])
-  (js/Deno.exit 0))
+  (-> (updater/restart! exe)
+      (.then (fn [_]
+               (when (ui/active?) (ui/destroy!))
+               (js/process.exit 0)))))
+
+(defn- apply-update! [candidate manual?]
+  (cond
+    (nil? candidate)
+    (when manual?
+      (notify! "Navi" (str "Navi v" version/VERSION " is up to date.")))
+
+    (not (paths/compiled?))
+    (notify! "Navi update available"
+             (str "v" (:version candidate) " is available (running from source; not installing)."))
+
+    :else
+    (do (notify! "Navi" (str "Updating to v" (:version candidate) "..."))
+        (-> (updater/install! candidate)
+            (.then relaunch!)))))
 
 (defn- check-updates! [manual?]
   (-> (updater/check)
-      (.then (fn [candidate]
-               (cond
-                 (nil? candidate)
-                 (when manual?
-                   (notify! "Navi" (str "Navi v" version/VERSION " is up to date.")))
-
-                 (not (paths/compiled?))
-                 (notify! "Navi update available"
-                          (str "v" (:version candidate) " is available (running from source; not installing)."))
-
-                 :else
-                 (do (notify! "Navi" (str "Updating to v" (:version candidate) "..."))
-                     (-> (updater/install! candidate)
-                         (.then relaunch!))))))
+      (.then #(apply-update! % manual?))
       (.catch (fn [e]
                 (log/error "Update check failed:" e)
-                (when manual?
-                  (notify! "Navi" (str "Update check failed: " (log/error-message e)) :error))))))
+                (notify! "Navi" (str "Update check failed: " (log/error-message e)) :error)))))
 
 (defn- schedule-updates! []
   (let [{:keys [enabled interval-hours]} (get-in @state [:config :updates])]
@@ -172,27 +174,26 @@
                (log/info "Navi" version/VERSION "started" (paths/exe-path))))
       (.catch (fn [e]
                 (log/error "Failed to start:" e)
-                (js/Deno.exit 1)))))
+                (js/process.exit 1)))))
+
+(defn- check-headless-updates! []
+  (-> (updater/check)
+      (.then (fn [candidate]
+               (when (and candidate (paths/compiled?))
+                 (-> (updater/install! candidate)
+                     (.then relaunch!)))))
+      (.catch #(log/error "Update check failed:" %))))
 
 (defn start-headless!
   "macOS/Linux: no tray or global hotkeys yet; stays running only to self-update.
-   Bind OS keyboard shortcuts to `navi-desktop toggle-theme` instead."
+   Bind OS keyboard shortcuts to `navi-desktop toggle-theme` (or Node source mode)."
   []
   (swap! state assoc :config (config/load!))
   (log/info "Navi" version/VERSION "running headless on" (:name (platform/current))
             "- bind OS shortcuts to the `toggle-theme` / `toggle-display-mode` commands.")
   (updater/cleanup-old!)
-  (let [{:keys [enabled interval-hours]} (get-in @state [:config :updates])
-        check! (fn []
-                 (-> (updater/check)
-                     (.then (fn [candidate]
-                              (when (and candidate (paths/compiled?))
-                                (-> (updater/install! candidate)
-                                    (.then (fn [exe]
-                                             (proc/spawn-detached! exe [])
-                                             (js/Deno.exit 0)))))))
-                     (.catch #(log/error "Update check failed:" %))))]
-    (js/setInterval (fn []) 3600000) ; keep the process alive even with updates disabled
+  (let [{:keys [enabled interval-hours]} (get-in @state [:config :updates])]
+    (js/setInterval (fn []) 3600000)
     (when enabled
-      (js/setTimeout check! initial-update-delay-ms)
-      (js/setInterval check! (* 3600000 (max 1 (or interval-hours 6)))))))
+      (js/setTimeout check-headless-updates! initial-update-delay-ms)
+      (js/setInterval check-headless-updates! (* 3600000 (max 1 (or interval-hours 6)))))))

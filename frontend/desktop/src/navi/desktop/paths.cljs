@@ -1,15 +1,20 @@
 (ns navi.desktop.paths
-  (:require [clojure.string :as str]))
+  (:require ["node:fs" :as fs]
+            ["node:sea" :as sea]
+            [clojure.string :as str]))
 
 (defn os
   "\"windows\", \"darwin\" or \"linux\"."
   []
-  (.. js/Deno -build -os))
+  (case (.-platform js/process)
+    "win32" "windows"
+    "darwin" "darwin"
+    "linux" "linux"))
 
 (defn windows? [] (= "windows" (os)))
 
 (defn env [k]
-  (.get (.-env js/Deno) k))
+  (aget (.-env js/process) k))
 
 (defn join [& parts]
   (str/join (if (windows?) "\\" "/") parts))
@@ -30,18 +35,28 @@
     "darwin" (join (home) "Library" "Application Support" "Navi")
     (join (or (env "XDG_CONFIG_HOME") (join (home) ".config")) "navi")))
 
-(defn exe-path []
-  (.execPath js/Deno))
-
 (defn compiled?
-  "True when running as a `deno compile`d executable rather than via `deno run`."
+  "True when running an official Node.js single executable application."
   []
-  (not (re-matches #"(?i)deno(\.exe)?" (basename (exe-path)))))
+  (sea/isSea))
+
+(defn exe-path
+  "The SEA executable, or the JavaScript entry file in source mode."
+  []
+  (if (compiled?) (.-execPath js/process) (aget (.-argv js/process) 1)))
+
+(defn node-path []
+  (.-execPath js/process))
+
+(defn launch-command
+  "The executable and arguments needed to launch Navi in SEA or source mode."
+  []
+  (if (compiled?) [(node-path)] [(node-path) (exe-path)]))
 
 (defn ensure-dir-sync! [dir]
-  (.mkdirSync js/Deno dir #js {:recursive true}))
+  (.mkdirSync fs dir #js {:recursive true}))
 
 (defn file-exists? [path]
-  (-> (.stat js/Deno path)
+  (-> (.access (.-promises fs) path)
       (.then (constantly true))
       (.catch (constantly false))))

@@ -1,6 +1,7 @@
 (ns navi.desktop.platform.linux
   "GNOME-compatible desktops (gsettings, notify-send, XDG autostart)."
-  (:require [clojure.string :as str]
+  (:require ["node:fs" :as fs]
+            [clojure.string :as str]
             [navi.desktop.paths :as paths]
             [navi.desktop.proc :as proc]))
 
@@ -31,7 +32,7 @@
   (str "[Desktop Entry]\n"
        "Type=Application\n"
        "Name=Navi\n"
-       "Exec=\"" (paths/exe-path) "\"\n"
+       "Exec=" (str/join " " (map #(str "\"" % "\"") (paths/launch-command))) "\n"
        "X-GNOME-Autostart-enabled=true\n"))
 
 (defn- autostart-enabled? []
@@ -40,10 +41,9 @@
 (defn- set-autostart! [enabled?]
   (if enabled?
     (do (paths/ensure-dir-sync! (paths/dirname (desktop-file-path)))
-        (-> (.writeTextFile js/Deno (desktop-file-path) (desktop-file))
+        (-> (.writeFile (.-promises fs) (desktop-file-path) (desktop-file) "utf8")
             (.then (constantly true))))
-    (-> (.remove js/Deno (desktop-file-path))
-        (.catch (constantly nil))
+    (-> (.rm (.-promises fs) (desktop-file-path) #js {:force true})
         (.then (constantly false)))))
 
 (def platform

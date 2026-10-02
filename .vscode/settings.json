@@ -8,6 +8,5 @@
       "shadowBuilds": ["worker", "desktop", "test"]
     }
   ],
-  "calva.autoConnectRepl": false,
-  "deno.enablePaths": ["frontend/desktop"]
+  "calva.autoConnectRepl": false
 }

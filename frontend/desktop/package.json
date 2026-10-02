@@ -1,0 +1,17 @@
+{
+  "name": "navi-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26.11.1"
+  },
+  "scripts": {
+    "start": "node out/main.js",
+    "icon": "node out/main.js write-icon build/navi.ico",
+    "package": "node ../../scripts/build-desktop-sea.mjs"
+  },
+  "dependencies": {
+    "koffi": "3.3.2"
+  }
+}

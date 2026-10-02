@@ -1,11 +1,9 @@
 (ns bootstrap
   "Idempotent dev-environment bootstrap, run by bootstrap.sh via nbb once Node.js exists.
-   Installs/upgrades Deno (latest) and a JDK 21 (build-time only, for shadow-cljs),
-   installs VS Code extensions, then runs npm install for the repo.
+   Installs a JDK 21 (build-time only, for shadow-cljs), VS Code extensions, and npm dependencies.
    Usage: bootstrap.cljs [--skip-extensions] [--skip-npm]"
   (:require ["child_process" :as cp]
             ["fs" :as fs]
-            ["os" :as os]
             ["path" :as path]
             [clojure.string :as str]
             [nbb.core :refer [*file*]]))
@@ -17,7 +15,7 @@
 
 (def args (set *command-line-args*))
 
-(def vscode-extensions ["betterthantomorrow.calva" "denoland.vscode-deno"])
+(def vscode-extensions ["betterthantomorrow.calva"])
 
 ;; winget exit codes that mean "nothing to do"
 (def winget-ok-codes #{0
@@ -67,9 +65,6 @@
 (defn version-of [cmd & flags]
   (first-line (:out (run cmd (or (seq flags) ["--version"]) {:capture? true}))))
 
-(defn prepend-path! [dir]
-  (set! (.-PATH js/process.env) (str dir path/delimiter (.-PATH js/process.env))))
-
 ;; WINDOWS PATH REFRESH -------------------------------------------------------
 
 (def ^:private windows-path-keys
@@ -113,8 +108,7 @@
 ;; WINDOWS (WINGET) -----------------------------------------------------------
 
 (def windows-packages
-  [{:id "DenoLand.Deno" :name "Deno" :present? #(command-exists? "deno")}
-   {:id "Microsoft.OpenJDK.21" :name "Microsoft OpenJDK 21" :present? java-ok?}])
+  [{:id "Microsoft.OpenJDK.21" :name "Microsoft OpenJDK 21" :present? java-ok?}])
 
 (defn winget-installed? [id]
   (ok? "winget" ["list" "--id" id "--exact" "--accept-source-agreements" "--disable-interactivity"]))
@@ -143,24 +137,6 @@
 
 (defn brew? []
   (and macos? (command-exists? "brew")))
-
-(defn brew-has? [formula]
-  (ok? "brew" ["list" formula]))
-
-(def deno-home-bin (path/join (os/homedir) ".deno" "bin"))
-
-(defn ensure-deno-unix! []
-  (prepend-path! deno-home-bin)
-  (cond
-    (and (brew?) (brew-has? "deno")) (do (log "Upgrading Deno via Homebrew if a newer version exists...")
-                                         (run "brew" ["upgrade" "deno"]))
-    (fs/existsSync (path/join deno-home-bin "deno")) (do (log "Upgrading Deno to the latest version...")
-                                                         (sh! "deno" ["upgrade"]))
-    (command-exists? "deno") (log "Deno already installed by another package manager; leaving it alone.")
-    (brew?) (do (log "Installing Deno via Homebrew...")
-                (sh! "brew" ["install" "deno"]))
-    :else (do (log "Installing Deno via the official install script...")
-              (sh! "sh" ["-c" "curl -fsSL https://deno.land/install.sh | sh -s -- -y"]))))
 
 (def linux-jdk-installers
   [[#{"debian" "ubuntu"} "apt-get update && apt-get install -y openjdk-21-jdk-headless"]
@@ -195,7 +171,6 @@
     :else (install-linux-jdk!)))
 
 (defn install-unix! []
-  (ensure-deno-unix!)
   (ensure-jdk-unix!))
 
 ;; VS CODE + NPM --------------------------------------------------------------
@@ -214,12 +189,12 @@
               (sh! "code" ["--install-extension" ext])))))))
 
 (defn npm-install! []
-  (log "npm install (root workspace + backend)...")
+  (log "npm install (root + backend + desktop workspaces)...")
   (sh! "npm" ["install"]))
 
 (defn print-versions! []
   (log "Versions:")
-  (doseq [[cmd & flags] [["node"] ["npm"] ["deno"] ["java" "-version"]]]
+  (doseq [[cmd & flags] [["node"] ["npm"] ["java" "-version"]]]
     (println (str "    " cmd ": " (apply version-of cmd flags)))))
 
 ;; MAIN -----------------------------------------------------------------------
@@ -228,7 +203,7 @@
   (log "Repo:" repo-root)
   (if windows? (install-windows!) (install-unix!))
   (refresh-path!)
-  (doseq [cmd ["deno" "java"]]
+  (doseq [cmd ["node" "npm" "java"]]
     (when-not (command-exists? cmd)
       (die cmd "is still not on PATH. Open a new terminal and re-run.")))
   (when-not (args "--skip-extensions") (ensure-extensions!))
