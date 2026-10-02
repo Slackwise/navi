@@ -1,7 +1,8 @@
 (ns navi.core
   (:require ["discord-interactions" :as di]
             [navi.auth :as auth]
-            [navi.discord :as discord]))
+            [navi.discord :as discord]
+            [navi.wow :as wow]))
 
 (defn handle-interaction [request env]
   (let [signature (.get (.-headers request) "X-Signature-Ed25519")
@@ -43,4 +44,10 @@
                     (auth/handle-logout-all request env)
 
                     :else
-                    (js/Promise.resolve (js/Response. "Navi is online" #js {:status 200})))))})
+                    (js/Promise.resolve (js/Response. "Navi is online" #js {:status 200})))))
+
+       :scheduled (fn [_event env ctx]
+                    (let [p (wow/process-wow-token-cron! env)]
+                      (if (and ctx (.-waitUntil ctx))
+                        (.waitUntil ctx p)
+                        p)))})

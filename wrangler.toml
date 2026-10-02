@@ -16,3 +16,7 @@ id = "YOUR_KV_NAMESPACE_ID"
 [vars]
 # OAuth client ID for Google SSO (not secret, used as the expected JWT audience).
 GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
